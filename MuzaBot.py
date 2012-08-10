@@ -38,7 +38,6 @@ from urllib import urlopen, urlretrieve
 from re import search, sub
 from os import getpid, popen
 
-#HOST="irc.desdelinux.net"
 HOST = "localhost" # URL del servidor IRC al que nos conectaremos
 PORT=6667 # Puerto del IRC. Este es el puerto por defecto
 NICK="MuzaBot" # Nick del bot
