@@ -266,15 +266,13 @@ class IRCBOT():
 			# Minutos y segundos.
 			nmin, nseg = divmod(aux, 60)
 			# Mostramos resultado.
+			self.send_msg('%s ha vuelto.' % username)
 			if ndias != 0:
-				send_msg('%s has estado ausente %i día(s), %i hora(s), %i minuto(s) y %i segundo(s).' % (username, ndias, nhoras, nmin, nseg))
+				self.send_msg('%s has estado ausente %i día(s), %i hora(s), %i minuto(s) y %i segundo(s).' % (username, ndias, nhoras, nmin, nseg))
 			elif nhoras != 0:
-				send_msg('%s has estado ausente %i hora(s), %i minuto(s) y %i segundo(s).' % (username, nhoras, nmin, nseg))
+				self.send_msg('%s has estado ausente %i hora(s), %i minuto(s) y %i segundo(s).' % (username, nhoras, nmin, nseg))
 			else:
-				send_msg('%s has estado ausente %i minutos y %i segundo(s)' % (username, nmin, nseg))
-			#else:
-			#	send_msg('%s ha vuelto.' % username)
-			#return (ndias, nhoras, nmin, nseg)
+				self.send_msg('%s has estado ausente %i minutos y %i segundo(s)' % (username, nmin, nseg))
 
 	def mostrarAyuda(self, username):
 		"""
