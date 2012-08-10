@@ -188,7 +188,7 @@ class IRCBOT():
 
 						elif  userinput == '$ sobre':
 							# Muestra un mensaje sobre el bot
-							send_msg("YYYYYYYYY Son Link presenta, MuzaBot, que suelta chorradas, a monton\n")
+							self.send_msg("YYYYYYYYY Son Link presenta, MuzaBot, que suelta chorradas, a monton\n")
 
 						elif  userinput == '$ version':
 							# Muestra la versión del bot
