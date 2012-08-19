@@ -26,98 +26,26 @@
 
 import socket
 import string
-import threading
-import xml.dom.minidom
-import hashlib
 import datetime
-import sys, traceback
 
-from time import sleep, time, mktime, strptime
-from commands import getoutput
+from time import sleep, time
 from urllib import urlopen, urlretrieve
-from re import search, sub
-from os import getpid, popen
+from re import search
 
-HOST = "localhost" # URL del servidor IRC al que nos conectaremos
-PORT=6667 # Puerto del IRC. Este es el puerto por defecto
-NICK="MuzaBot" # Nick del bot
-IDENT="MuzaBot" # Nombre identificativo del bot
-REALNAME="MuzaBot" # Nombre real del bot
-CHAN="#Home" # Canal al que se conectara
-feedurl = 'http://blog.desdelinux.net/feed/' # URL al feed que se usara en el bot para la función RSS
+# Modulos del bot
+from muzabot import rss
+from muzabot.functions import *
+from muzabot.conf import botconf
+from muzabot import memo
+c = botconf()
+
 readbuffer=""
 s=socket.socket( )
-s.connect((HOST, PORT))
-s.send("NICK %s\r\n" % NICK)
-s.send("USER %s %s bla :%s\r\n" % (IDENT, HOST, REALNAME))
-s.send("JOIN :%s\r\n" % CHAN)
-
-class RSS():
-	"""
-	Esta clase muestra en el canal IRC los últimos artículos publicados en el feed indicado
-	"""
-	def __init__(self):
-		self.rss_md5 = ''
-		try:
-			document = xml.dom.minidom.parse(urlopen(feedurl))
-			#Almacenamos la fecha del ultimo articulo publicado para mas tarde compararlo para saber si hay artículos nuevos
-			self.last_date = self.formatTime(document.getElementsByTagName('item')[0].getElementsByTagName('pubDate')[0].firstChild.data.encode('UTF8', 'replace'))
-			while True:
-				self.getLastNews()
-				sleep(60)
-		except:
-			log()
-
-	def md5sum(self, filename):
-		"""
-		Esta función se encarga de crear la suma de verificación para comprobar si se modifico el feed desde la ultima vez
-		"""
-		md5 = hashlib.md5()
-		with open(filename,'rb') as f:
-			for chunk in iter(lambda: f.read(128*md5.block_size), b''):
-				 md5.update(chunk)
-		return md5.hexdigest()
-
-
-	def getLastNews(self):
-		"""
-		Esta función se encarga de descargar el feed, verificar la suma de verificación y si cambio invocar a la función que se encarga de mostrar los articulos nuevos
-		"""
-		urlretrieve(feedurl, 'rss.xml')
-		md5 = self.md5sum('rss.xml')
-		if md5 != self.rss_md5:
-			self.sendLastNews()
-			self.rss_md5 = md5
-
-	def formatTime(self, datetime):
-		"""
-		Esta función simplemente se encarga de convertir la fecha dada por el feed a segundos
-		"""
-		time_format = "%a, %d %b %Y %H:%M:%S +0000"
-		return int(mktime(strptime(datetime, time_format)))
-
-	def sendLastNews(self):
-
-		"""
-		Esta función se encarga de verificar si hay artículos nuevos y publicarlos en el IRC
-		"""
-
-		# Leemos el feed
-		document = xml.dom.minidom.parse(open('rss.xml'))
-		# Guardamos la fecha del ultimo articulo
-		lastdate = document.getElementsByTagName('item')[0].getElementsByTagName('pubDate')[0].firstChild.data.encode('UTF8', 'replace')
-
-		# Ahorra recorremos todos los elementos item del feed y almacenamos los datos que nos interesan
-		for item in document.getElementsByTagName('item'):
-			title = item.getElementsByTagName('title')[0].firstChild.data.encode('UTF8', 'replace')
-			link = item.getElementsByTagName('link')[0].firstChild.data.encode('UTF8', 'replace')
-			date = item.getElementsByTagName('pubDate')[0].firstChild.data.encode('UTF8', 'replace')
-			# Si las fechas del articulo son mas actuales que la del ultimo articulo almacenado anteriormente los mostramos
-			if self.formatTime(date) > self.last_date:
-				msg = 'Nuevo articulo: %s -> %s' % (title, link)
-				s.send("PRIVMSG %s :%s\n" % (CHAN, msg))
-		# Ahora guardamos la fecha del articulo mas reciente
-		self.lastdate = self.formatTime(lastdate)
+s.connect((c['host'], c['port']))
+s.send("NICK %s\r\n" % c['nick'])
+s.send("USER %s %s bla :%s\r\n" % (c['ident'], c['host'], c['realname']))
+s.send("JOIN :%s\r\n" % c['channel'])
+m = memo.memo(s)
 
 class IRCBOT():
 
@@ -129,9 +57,10 @@ class IRCBOT():
 		# Este bucle infinito se encarga de que el bot se ejecute constantemente
 		readbuffer = ""
 		line = ''
+		rss.RSS(s)
 
 		try:
-			threading.Thread(target=RSS).start()
+
 			while 1:
 				readbuffer=readbuffer+s.recv(512)
 				temp=string.split(readbuffer, "\n")
@@ -149,9 +78,10 @@ class IRCBOT():
 					elif search('^\:(\S*)\!(\S*)\@(\S*)\sJOIN\s', line):
 						# Damos la bienvenida al usuario que acaba de entrar
 						username = line.split('!')[0].split(':')[1]
-						if username != NICK and username.find(HOST) == -1:
+						if username != c['nick'] and username.find(c['host']) == -1:
 							sleep(5)
 							self.send_msg("Bienvenid@ %s ^^\n" % username)
+							m.getmemos(username)
 
 					elif search('^\:(\S*)\!(\S*)\@(\S*)\sPART\s(.+)', line):
 						# Si un usuario se marcha lo mostramos y si uso el comando away lo borramos de la lista
@@ -172,19 +102,28 @@ class IRCBOT():
 							sleep(2)
 							self.send_msg("Si mami. Chusma, chusma prfff\n")
 
-						elif userinput.find('http') != -1 and username != NICK:
-							# Si un usuario introdujo una URL mostramos el titulo de la pagina si es que la tiene
+						# Si un usuario introdujo una URL mostramos el titulo de la pagina si es que la tiene
+						elif userinput.find('http') != -1 and username != c['nick']:
 							for u in userinput.split():
-								d = search('(.+://)(www.)?([^/]+)(.*)', u)
-								if d:
-									raw = urlopen(u).read()
-									title = search('<title>([\w\W]+)</title>', raw)
-									if title:
-										title = title.groups()[0]
-										title2 = ''
-										for t in title.split('\n'):
-											title2 += t.lstrip()+' '
-										self.send_msg("%s en %s\n" % (title2, d.groups()[2]))
+								try:
+									d = search('(.+://)(www.)?([^/]+)(.*)', u)
+									if d:
+										url = urlopen(u)
+										mime = url.info().gettype()
+										code = url.getcode()
+										if mime == 'text/html' and code == 200:
+											raw = urlopen(u).read()
+											title = search('<title>([\w\W]+)</title>', raw)
+											if title:
+												title = title.groups()[0]
+												title2 = ''
+												for t in title.split('\n'):
+													title2 += t.lstrip()+' '
+													title2 = HTMLEntitiesToUnicode(title2)
+												self.send_msg("%s en %s\n" % (title2, d.groups()[2]))
+
+								except IOError:
+									pass
 
 						elif  userinput == '$ sobre':
 							# Muestra un mensaje sobre el bot
@@ -215,6 +154,18 @@ class IRCBOT():
 								d = self.away.pop(username)
 								self.cuantoTiempo(username, int(d[0]))
 
+						elif search('^\$\smemo\s(.+)', userinput):
+							# Permite dejar un mensaje a alguien que no esta conectado el cual lo vera al entrar al canal
+							d = search('^\$\smemo\s([a-zA-Z0-9_\.\^\-]+)\s(.+)', userinput)
+							if d:
+								d = d.groups()
+								# Comprobamos que el mensaje no va dirigido al bot
+								if d[0] != c['nick']:
+									m.sendmemos(d[0], username, d[1])
+							else:
+								s.send("PRIVMSG %s :El mensaje que ha intentado enviar es invalido. Verifique que indico el destinatario y el mensaje\n" % username)
+								s.send("PRIVMSG %s :P.e: $ memo usuario El usuario MadBot esta haciendo spam. Por favor bannealo\n" % username)
+
 						elif userinput == '$ ayuda':
 							# Muestra la ayuda del bot
 							self.mostrarAyuda(username)
@@ -227,11 +178,11 @@ class IRCBOT():
 							"""
 							Si alguien nombra a un usario que este en el diccionario de los que ejecutaron mevoy, muestra un mensaje
 							"""
-							if l in self.away != -1 and username != 'CalicoBot':
+							if l in self.away != -1 and username != c['nick']:
 								d = self.away[l]
 								if len(d) == 2:
 									# Si dejo un mensaje personalizado se muestra
-									self.send_msg("%s dijo %s\n" % (l, d[1]))
+									self.send_msg("%s: %s\n" % (l, d[1]))
 								else:
 									self.send_msg("No molestéis a %s que no esta, cawen los mengues\n" % l)
 		except:
@@ -246,7 +197,7 @@ class IRCBOT():
 		Antes de enviarlo espera 0.2 segundos para evitar que expulsen al boot por flood
 		"""
 		sleep(0.2)
-		s.send("PRIVMSG %s :%s\n" % (CHAN, msg))
+		s.send("PRIVMSG %s :%s\n" % (c['channel'], msg))
 
 	def cuantoTiempo(self, username, segundos):
 		"""
@@ -281,28 +232,13 @@ class IRCBOT():
 		msg = ('Comandos disponibles ($ comando):',
 		'mevoy: Muestra un mensaje de que se va y avisa de su ausencia si alguien le nombra.',
 		'volvi: Si ejecuto antes mevoy ejecute este para avisar de su regreso y borrarle de la lista'
+		'memo <usuario> <mensaje>: Deja un mensaje a un usuario que no este en linea. Cuando se conecte se le mostrara'
 		'sobre: muestra un texto sobre el bot',
 		'version: nuestra la versión del bot',
 		'ayuda: muestra este mensaje de ayuda')
 		for m in msg:
 			sleep(0.2)
 			s.send("PRIVMSG %s :%s\n" % (username, m))
-
-def log(line=None):
-	t1 = getpid()
-
-	"""
-	Si ocurrió un error lo guardamos en un log
-	"""
-
-	f = open('log.txt', 'w')
-	tb = sys.exc_info()[2]
-	tbinfo = traceback.format_tb(tb)[0]
-	if line:
-		f.write(line+'\n')
-	f.write("PYTHON ERRORS:\nTraceback info:\n" + tbinfo + "\nError Info:\n" + str(sys.exc_info()[1]))
-	f.close()
-	popen('kill -9 '+str(t1))
 
 if __name__ == '__main__':
 	bot = IRCBOT()

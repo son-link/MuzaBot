@@ -1,0 +1,8 @@
+r30:
+	* Primera release publica del bot
+
+r31:
+	* El código a sido separado en varios módulospara tener un código mas limpio y para aumentar la rapidez a la hora de modificarlo.
+	* Se a añadido un sistema para dejar mensajes a usuarios desconectados.
+	* La configuración general del bot se encuentra en el archivo bot.cfg
+	* Añadido este CHANGELOG
