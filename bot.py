@@ -231,7 +231,7 @@ class IRCBOT():
 		"""
 		msg = ('Comandos disponibles ($ comando):',
 		'mevoy: Muestra un mensaje de que se va y avisa de su ausencia si alguien le nombra.',
-		'volvi: Si ejecuto antes mevoy ejecute este para avisar de su regreso y borrarle de la lista'
+		'volvi: Si ejecuto antes mevoy ejecute este para avisar de su regreso y borrarle de la lista',
 		'memo <usuario> <mensaje>: Deja un mensaje a un usuario que no este en linea. Cuando se conecte se le mostrara',
 		'sobre: muestra un texto sobre el bot',
 		'version: nuestra la versión del bot',
